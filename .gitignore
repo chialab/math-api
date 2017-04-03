@@ -1,3 +1,9 @@
 /node_modules/*
 !/node_modules/.gitkeep
+/archive.zip
 /batik.tar.gz
+
+# Elastic Beanstalk Files
+.elasticbeanstalk/*
+!.elasticbeanstalk/*.cfg.yml
+!.elasticbeanstalk/*.global.yml
