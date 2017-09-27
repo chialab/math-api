@@ -14,7 +14,7 @@
   "author": "Chia Lab s.r.l.",
   "license": "MIT",
   "dependencies": {
-    "lodash": "^4.17.0",
-    "mathjax-node": "^0.5.1"
+    "mathjax-node": "^1.2.0",
+    "underscore": "^1.8.3"
   }
 }
