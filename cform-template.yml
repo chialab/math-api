@@ -1,0 +1,196 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Deploy REST API to convert LaTeX and MathML formulas to SVG.
+
+Parameters:
+  S3Bucket:
+    Description: Enter name of S3 bucket where your Lambda function code is uploaded.
+    Type: String
+  S3Key:
+    Description: Enter name of S3 bucket object where your Lambda function code is uploaded.
+    Type: String
+  StageName:
+    Description: Enter name of stage where latest changes will be deployed.
+    Type: String
+    Default: latest
+  HostName:
+    Description: Enter hostname from which APIs will be served.
+    Type: String
+  Route53HostedZone:
+    Description: Choose Route53 hosted zone to create DNS record.
+    Type: AWS::Route53::HostedZone::Id
+  CertificateArn:
+    Description: Enter ARN of a valid ACM certificate for the provided domain.
+    Type: String
+  Version:
+    Description: Enter version number of APIs to be deployed.
+    Type: String
+    Default: v1
+
+Resources:
+  ### Lambda function
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+  Lambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Render math formulas.
+      Role: !GetAtt LambdaRole.Arn
+      Handler: lambda.handler
+      Runtime: nodejs6.10
+      MemorySize: 256
+      Timeout: 5
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: !Ref S3Key
+  LambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt Lambda.Arn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub
+        - "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApiId}/*/POST/convert"
+        - RestApiId: !Ref RestApi
+
+  ### API Gateway
+  RestApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: MathRenderer
+      Description: API for rendering LaTeX and MathML to SVG.
+  ModelConvert:
+    Type: AWS::ApiGateway::Model
+    Properties:
+      RestApiId: !Ref RestApi
+      Name: Input
+      Description: Input data for conversion.
+      ContentType: application/json
+      Schema: |
+        {
+          "$schema" : "http://json-schema.org/draft-04/schema#",
+          "title": "Input payload",
+          "type": "object",
+          "required": ["type", "source"],
+          "properties": {
+            "type": {
+              "description": "Type of input string (latex, mathml)",
+              "type": "string"
+            },
+            "source": {
+              "description": "Source LaTeX or MathML",
+              "type": "string"
+            },
+            "inline": {
+              "description": "For LaTeX input, choose if it should be rendered as an inline formula",
+              "type": "boolean"
+            },
+            "config": {
+              "description": "Additional configuration for MathJax",
+              "type": "object"
+            }
+          },
+          "additionalProperties": false
+        }
+  ResourceConvert:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApi
+      ParentId: !GetAtt RestApi.RootResourceId
+      PathPart: convert
+  ResourceConvertPost:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref ResourceConvert
+      HttpMethod: POST
+      AuthorizationType: NONE
+      RequestModels:
+        application/json: !Ref ModelConvert
+      RequestParameters:
+        method.request.header.Accept: yes
+      Integration:
+        Type: AWS
+        Uri: !Sub
+          - "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations"
+          - LambdaArn: !GetAtt Lambda.Arn
+        IntegrationHttpMethod: POST
+        RequestTemplates:
+          application/json: |
+            {
+              "accept": "$input.params('Accept')",
+              "body": $input.body
+            }
+        PassthroughBehavior: NEVER
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Content-Type: integration.response.body.contentType
+            ResponseTemplates:
+              application/json: "$input.path('$.data')"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Content-Type: yes
+
+  ### Deployment
+  Deployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - ResourceConvertPost
+    Properties:
+      RestApiId: !Ref RestApi
+      StageName: !Ref StageName
+  Stage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      RestApiId: !Ref RestApi
+      DeploymentId: !Ref Deployment
+      StageName: !Ref Version
+      Description: Current API version
+  DomainName:
+    Type: AWS::ApiGateway::DomainName
+    Properties:
+      DomainName: !Ref HostName
+      CertificateArn: !Ref CertificateArn
+  BasePathMapping:
+    Type: AWS::ApiGateway::BasePathMapping
+    Properties:
+      RestApiId: !Ref RestApi
+      DomainName: !Ref DomainName
+      Stage: !Ref Stage
+  Record:
+    Type: "AWS::Route53::RecordSet"
+    Properties:
+      HostedZoneId: !Ref Route53HostedZone
+      Type: A
+      Name: !Ref DomainName
+      AliasTarget:
+        DNSName: !GetAtt DomainName.DistributionDomainName
+        HostedZoneId: Z2FDTNDATAQYW2 # See: http://docs.aws.amazon.com/general/latest/gr/rande.html#cf_region
+
+Outputs:
+  LambdaFunctionName:
+    Description: Name of created Lambda function.
+    Value: !Ref Lambda
+  RestApiId:
+    Description: ID of created REST API.
+    Value: !Ref RestApi
+    Export:
+      Name: !Sub "${AWS::StackName}:RestApiId"
+  DeploymentId:
+    Description: ID of latest deployment
+    Value: !Ref Deployment
+    Export:
+      Name: !Sub "${AWS::StackName}:DeploymentId"
