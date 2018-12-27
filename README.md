@@ -15,7 +15,7 @@ This will expose the API on port `8080`.
 ## Converting formulas
 
 The API consists of a single endpoint `GET /convert` that accepts requests containing a
-JSON payload with at least `format` (either `latex` or `mathml`) and `source` keys.
+JSON payload with at least `type` (either `latex` or `mathml`) and `source` keys.
 
 The request **MUST** contain an `Accept` header specifying the mime type of the
 desired conversion format (either `application/mathml+xml`, `image/png`, or
