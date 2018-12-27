@@ -7,7 +7,7 @@ This Docker image exposes simple APIs to render formulas using MathJax on the se
 To get started, simply run a container from this image:
 
 ```
-$ docker run --name mathjax-node -d -p 8080:80 chialab/mathjax-node
+$ docker run --name mathjax-docker -d -p 8080:80 chialab/mathjax-docker
 ```
 
 This will expose the API on port `8080`.
