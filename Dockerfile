@@ -1,19 +1,12 @@
 FROM node:latest
 
-RUN \
-  apt-get update && \
-  apt-get install -y openjdk-7-jre && \
-  rm -rf /var/lib/apt/lists/*
+ENV PORT=3000 NODE_ENV=production
 
-RUN mkdir -p /usr/src/app
 WORKDIR /usr/src/app
-
-COPY package.json /usr/src/app/
-RUN npm install
+COPY package.json yarn.lock /usr/src/app/
+RUN yarn install
 COPY . /usr/src/app
-RUN make batik
 
-ENV MJAX_PORT 80
-EXPOSE 80
+EXPOSE 3000
 
-CMD [ "npm", "start" ]
+CMD [ "yarn", "start" ]
