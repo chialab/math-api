@@ -19,6 +19,24 @@ const DEFAULT_SETTINGS = process.env.MJAX_SETTINGS ? JSON.parse(process.env.MJAX
 const getHeader = (allHeaders, header) => allHeaders[Object.keys(allHeaders).find((h) => h.toLowerCase() === header.toLowerCase())];
 
 /**
+ * Get data from request.
+ *
+ * @param {{ body: string }} event API Gateway event.
+ * @returns {any}
+ */
+const getData = (event) => {
+    try {
+        return JSON.parse(event.body);
+    } catch (err) {
+        if (err instanceof SyntaxError) {
+            throw new HttpError(400, 'Invalid JSON input');
+        }
+
+        throw err;
+    }
+};
+
+/**
  * Detect input format.
  *
  * @param {RequestBody} data Request data.
@@ -136,7 +154,7 @@ exports.handler = async (event) => {
             throw new HttpError(400, 'Invalid request content type');
         }
 
-        const input = JSON.parse(event.body);
+        const input = getData(event);
         const accept = getHeader(event.headers, 'accept');
 
         const { contentType, isBase64Encoded = false, data } = await typeset(input, accept);
@@ -144,17 +162,14 @@ exports.handler = async (event) => {
         return { statusCode: 200, headers: { 'Content-Type': contentType }, body: data, isBase64Encoded };
     } catch (err) {
         console.error('Error', err);
-
-        let statusCode = 500;
-        let headers = { 'Content-Type': 'application/json' };
-        let message = err.message;
-        if (err instanceof SyntaxError) {
-            statusCode = 400;
-        } else if (err instanceof HttpError) {
-            statusCode = err.statusCode;
-            headers = Object.assign(headers, err.headers);
+        if (err instanceof HttpError) {
+            return {
+                statusCode: err.statusCode,
+                headers: Object.assign({ 'Content-Type': 'application/json' }, err.headers),
+                body: JSON.stringify({ message: err.message }),
+            };
         }
 
-        return { statusCode, headers, body: JSON.stringify({ message }) };
+        throw err; // Unknown error: let Lambda function fail.
     }
 };

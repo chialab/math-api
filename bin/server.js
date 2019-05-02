@@ -66,32 +66,38 @@ const server = http.createServer((req, res) => {
         body += chunk;
     });
     req.on('end', async () => {
-        const event = {
-            headers: req.headers,
-            body,
-        };
+        try {
+            const event = {
+                headers: req.headers,
+                body,
+            };
 
-        if (requestUrl.pathname === '/convert') {
-            // Convert.
-            switch (req.method) {
-                case 'GET':
-                case 'POST':
-                {
-                    const { statusCode, headers, body, isBase64Encoded = false } = await handler(event);
+            if (requestUrl.pathname === '/convert') {
+                // Convert.
+                switch (req.method) {
+                    case 'GET':
+                    case 'POST':
+                    {
+                        const { statusCode, headers, body, isBase64Encoded = false } = await handler(event);
 
-                    if (isBase64Encoded) {
-                        return send(statusCode, headers, Buffer.from(body, 'base64'));
+                        if (isBase64Encoded) {
+                            return send(statusCode, headers, Buffer.from(body, 'base64'));
+                        }
+
+                        return send(statusCode, headers, body);
                     }
 
-                    return send(statusCode, headers, body);
+                    default:
+                        return error(405, `Method not allowed: ${req.method}`, { 'Allow': 'GET,POST' });
                 }
-
-                default:
-                    return error(405, `Method not allowed: ${req.method}`, { 'Allow': 'GET,POST' });
             }
-        }
 
-        return error(404);
+            return error(404);
+        } catch (err) {
+            console.error(err);
+
+            return error(500);
+        }
     });
 });
 

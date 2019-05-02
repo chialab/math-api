@@ -89,6 +89,111 @@ describe('index#handler', function () {
         expect(actual.body).to.be.a('string').that.contains('</svg>');
         expect(actual.isBase64Encoded).to.be.a('boolean').that.equals(false);
     }));
+
+    it('should fail gracefully with invalid request Content-Type header', async function () {
+        const event = {
+            headers: {
+                'content-type': 'text/plain',
+                'accept': RESPONSE_TYPES.svg,
+            },
+            body: JSON.stringify({ type: 'latex', source: 'x^2' }),
+        };
+        const expected = {
+            statusCode: 400,
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ message: 'Invalid request content type' }),
+        };
+
+        const actual = await handler(event);
+
+        expect(actual).to.be.an('object').that.deep.equals(expected);
+    });
+
+    it('should fail gracefully with invalid JSON payload', async function () {
+        const event = {
+            headers: {
+                'content-type': 'application/json',
+                'accept': RESPONSE_TYPES.svg,
+            },
+            body: 'NOT-A-JSON',
+        };
+        const expected = {
+            statusCode: 400,
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ message: 'Invalid JSON input' }),
+        };
+
+        const actual = await handler(event);
+
+        expect(actual).to.be.an('object').that.deep.equals(expected);
+    });
+
+    it('should fail gracefully with invalid request Accept header', async function () {
+        const event = {
+            headers: {
+                'content-type': 'application/json',
+                'accept': 'text/plain',
+            },
+            body: JSON.stringify({ type: 'latex', source: 'x^2' }),
+        };
+        const expected = {
+            statusCode: 406,
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ message: 'Not acceptable: text/plain' }),
+        };
+
+        const actual = await handler(event);
+
+        expect(actual).to.be.an('object').that.deep.equals(expected);
+    });
+
+    it('should fail gracefully with invalid request "type"', async function () {
+        const event = {
+            headers: {
+                'content-type': 'application/json',
+                'accept': RESPONSE_TYPES.svg,
+            },
+            body: JSON.stringify({ type: 'text', source: 'x^2' }),
+        };
+        const expected = {
+            statusCode: 400,
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ message: 'Invalid type: text' }),
+        };
+
+        const actual = await handler(event);
+
+        expect(actual).to.be.an('object').that.deep.equals(expected);
+    });
+
+    it('should fail gracefully with invalid empty "source"', async function () {
+        const event = {
+            headers: {
+                'content-type': 'application/json',
+                'accept': RESPONSE_TYPES.svg,
+            },
+            body: JSON.stringify({ type: 'latex', source: '' }),
+        };
+        const expected = {
+            statusCode: 400,
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ message: 'Missing or empty source' }),
+        };
+
+        const actual = await handler(event);
+
+        expect(actual).to.be.an('object').that.deep.equals(expected);
+    });
 });
 
 describe('utils#parseDataUrl', function () {
