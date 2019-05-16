@@ -1,175 +1,181 @@
-const MathJax = require('mathjax-node-svg2png');
-const { parseDataUrl, HttpError } = require('./utils');
-const { RESPONSE_TYPES } = require('./config');
+const MathJax = require('mathjax-node');
+const svg2png = require("svg2png");
 
-const DEFAULT_SETTINGS = process.env.MJAX_SETTINGS ? JSON.parse(process.env.MJAX_SETTINGS) : {};
+/** @typedef {{ input: 'latex', inline?: boolean } | { input: 'mathml' }} InputDefinition */
+/** @typedef {{ output: 'mathml' | 'svg' } | { output: 'png', width?: number, height?: number }} OutputDefinition */
+/** @typedef {InputDefinition & OutputDefinition & { source: string }} Input */
+/** @typedef {'application/mathml+xml' | 'image/png' | 'image/svg+xml'} ContentType */
+/** @typedef {{ contentType: ContentType, isBase64Encoded?: boolean, data: string }} Output */
 
-/** @typedef {'image/png' | 'image/svg+xml' | 'application/mathml+xml'} AcceptHeader */
-/** @typedef {{ type: 'latex' | 'mathml', inline: boolean, source: string, config: {} }} RequestBody */
-/** @typedef {'TeX' | 'inline-TeX' | 'MathML'} InputFormat */
-/** @typedef {'png' | 'svg' | 'mathml'} OutputType */
-
-/**
- * Find header's value by its name.
- *
- * @param {{ [x: string]: string|string[] }} allHeaders Haystack of all headers.
- * @param {string} header Needle.
- * @returns {string|string[]}
- */
-const getHeader = (allHeaders, header) => allHeaders[Object.keys(allHeaders).find((h) => h.toLowerCase() === header.toLowerCase())];
+/** @typedef {{ httpMethod: 'GET' | 'POST', headers: { [x: string]: string }, queryStringParameters: { [x: string]: string }, body: string }} ApiGatewayProxyEvent */
+/** @typedef {{ statusCode: number, headers?: { [x: string]: string }, body?: string | Buffer, isBase64Encoded?: boolean }} ApiGatewayProxyResponse */
 
 /**
- * Get data from request.
+ * Response types.
  *
- * @param {{ body: string }} event API Gateway event.
- * @returns {any}
+ * @var {{ [x: OutputType]: ContentType }}
  */
-const getData = (event) => {
-    try {
-        return JSON.parse(event.body);
-    } catch (err) {
-        if (err instanceof SyntaxError) {
-            throw new HttpError(400, 'Invalid JSON input');
-        }
-
-        throw err;
-    }
+const RESPONSE_TYPES = {
+    mathml: 'application/mathml+xml',
+    png: 'image/png',
+    svg: 'image/svg+xml',
 };
 
 /**
- * Detect input format.
+ * MathJax settings.
  *
- * @param {RequestBody} data Request data.
- * @returns {InputFormat}
+ * @var {{}}
  */
-const getInputFormat = (data) => {
-    switch (data.type) {
+const MJAX_SETTINGS = process.env.MJAX_SETTINGS ? JSON.parse(process.env.MJAX_SETTINGS) : {};
+
+// Initialize MathJax.
+MathJax.config({
+    MathJax: MJAX_SETTINGS,
+});
+MathJax.start();
+
+/**
+ * Detect format.
+ *
+ * @param {InputDefinition} input Input.
+ * @returns {'TeX' | 'inline-TeX' | 'MathML'}
+ */
+const getFormat = (input) => {
+    switch (input.input) {
         case 'mathml':
             return 'MathML';
 
         case 'latex':
-            if (data.inline) {
+            if (input.inline) {
                 return 'inline-TeX';
             }
 
             return 'TeX';
 
         default:
-            throw new HttpError(400, `Invalid type: ${data.type || ''}`);
-    }
-};
-
-/**
- * Get output format.
- *
- * @param {AcceptHeader} accept `Accept` header.
- * @returns {OutputType}
- */
-const getOutputFormat = (accept) => {
-    switch (accept) {
-        case RESPONSE_TYPES.mml:
-            return 'mathml';
-
-        case RESPONSE_TYPES.png:
-            return 'png';
-
-        case RESPONSE_TYPES.svg:
-            return 'svg';
-
-        default:
-            throw new HttpError(406, `Not acceptable: ${accept || ''}`);
+            throw new Error(`Invalid input: ${input.input || ''}`);
     }
 };
 
 /**
  * Typeset math.
  *
- * @param {RequestBody} input Input data.
- * @param {AcceptHeader} target Target conversion format.
- * @returns {Promise<{ contentType: AcceptHeader, data: string, isBase64Encoded?: boolean }>}
+ * @param {{ math: string, format: 'TeX' | 'inline-TeX' | 'MathML', mml?: boolean, svg?: boolean }} data Data.
+ * @returns {Promise<{ mml?: string, svg?: string }>}
  */
-const typeset = async (input, target) => {
-    const inputFormat = getInputFormat(input);
-    const outputType = getOutputFormat(target);
+const typeset = async (data) => {
+    try {
+        return await MathJax.typeset(data);
+    } catch (err) {
+        console.error('MathJax error', err);
 
-    if (typeof input.source !== 'string' || input.source.trim() === '') {
-        throw new HttpError(400, 'Missing or empty source');
+        if (err instanceof Error) {
+            throw err;
+        }
+        if (typeof err === 'string') {
+            throw new Error(`MathJax error: ${err}`);
+        }
+
+        // Syntax error.
+        if (Array.isArray(err) && typeof err[0] === 'string') {
+            throw new Error(`Invalid source: ${err[0].replace(/[\n\r]+/g, ' ')}`);
+        }
+        throw new Error('Invalid source');
     }
+};
 
-    if (outputType === 'mathml' && inputFormat === 'MathML') {
+/**
+ * Render math.
+ *
+ * @param {Input} event Input event.
+ * @returns {Promise<Output>}
+ */
+exports.render = async (event) => {
+    if (event.input === 'mathml' && event.output === 'mathml') {
         // No-op conversion MathML-to-MathML.
-        return { contentType: RESPONSE_TYPES.mml, data: input.source };
+        return { contentType: RESPONSE_TYPES.mathml, data: event.source };
     }
 
-    const settings = Object.assign(input.config || {}, DEFAULT_SETTINGS);
-    MathJax.config({
-        MathJax: settings,
-    });
-    MathJax.start();
-
-    switch (outputType) {
+    const format = getFormat(event);
+    const math = event.source;
+    switch (event.output) {
         case 'mathml':
         {
-            const res = await MathJax.typeset({ math: input.source, format: inputFormat, mml: true });
+            const res = await typeset({ math, format, mml: true });
 
-            return { contentType: RESPONSE_TYPES.mml, data: res.mml };
+            return { contentType: RESPONSE_TYPES.mathml, data: res.mml };
         }
 
         case 'png':
         {
-            const res = await MathJax.typeset({ math: input.source, format: inputFormat, png: true });
+            const res = await typeset({ math, format, svg: true });
 
-            let { contentType, data, isBase64Encoded } = parseDataUrl(res.png);
+            const { width, height } = event;
+            const data = await svg2png(res.svg, { width, height });
 
-            contentType = contentType || RESPONSE_TYPES.png;
-            if (!isBase64Encoded) {
-                data = Buffer.from(data).toString('base64');
-                isBase64Encoded = true;
-            }
-
-            return { contentType, isBase64Encoded, data };
+            return { contentType: RESPONSE_TYPES.png, isBase64Encoded: true, data: data.toString('base64') };
         }
 
         case 'svg':
         {
-            const res = await MathJax.typeset({ math: input.source, format: inputFormat, svg: true });
+            const res = await typeset({ math, format, svg: true });
 
             return { contentType: RESPONSE_TYPES.svg, data: res.svg };
         }
 
         default:
-            throw new HttpError(400, `Invalid output format: ${outputType}`);
+            throw new Error(`Invalid output: ${event.output || ''}`);
     }
 };
 
 /**
- * Typeset maths.
+ * Render math for AWS API Gateway.
  *
- * @param {{ headers: { [x: string]: string }, body: string }} event AWS API Gateway event.
- * @returns {Promise<{ statusCode: number, headers: { [x: string]: string }, body: string, isBase64Encoded?: boolean }>}
+ * @param {ApiGatewayProxyEvent} event Incoming event.
+ * @returns {Promise<ApiGatewayProxyResponse>}
  */
 exports.handler = async (event) => {
     try {
-        if (getHeader(event.headers, 'content-type') !== 'application/json') {
-            throw new HttpError(400, 'Invalid request content type');
+        let input;
+        if (event.httpMethod === 'GET') {
+            input = event.queryStringParameters;
+            if (typeof input.inline !== 'undefined') {
+                input.inline = input.inline === '1';
+            }
+            if (typeof input.width !== 'undefined') {
+                input.width = parseInt(input.width, 10);
+            }
+            if (typeof input.height !== 'undefined') {
+                input.height = parseInt(input.height, 10);
+            }
+        } else {
+            input = JSON.parse(event.body);
         }
 
-        const input = getData(event);
-        const accept = getHeader(event.headers, 'accept');
+        const { contentType, isBase64Encoded = false, data } = await this.render(input);
 
-        const { contentType, isBase64Encoded = false, data } = await typeset(input, accept);
-
-        return { statusCode: 200, headers: { 'Content-Type': contentType }, body: data, isBase64Encoded };
+        return {
+            statusCode: 200,
+            headers: {
+                'Content-Type': contentType,
+            },
+            body: data,
+            isBase64Encoded,
+        };
     } catch (err) {
-        console.error('Error', err);
-        if (err instanceof HttpError) {
-            return {
-                statusCode: err.statusCode,
-                headers: Object.assign({ 'Content-Type': 'application/json' }, err.headers),
-                body: JSON.stringify({ message: err.message }),
-            };
+        if (!(err instanceof Error)) {
+            throw new Error(err);
+        }
+        if (!(err instanceof SyntaxError) && !err.message.startsWith('Invalid ')) {
+            throw err;
         }
 
-        throw err; // Unknown error: let Lambda function fail.
+        return {
+            statusCode: 400,
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ message: err.message }),
+        };
     }
 };

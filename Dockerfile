@@ -1,6 +1,8 @@
-FROM node:latest
+ARG NODE_VERSION=8.10
+FROM node:${NODE_VERSION}
 
-ENV PORT=3000 NODE_ENV=production
+ARG NODE_ENV=production
+ENV PORT=3000 NODE_ENV=${NODE_ENV}
 
 WORKDIR /usr/src/app
 COPY package.json yarn.lock /usr/src/app/

@@ -1,0 +1,38 @@
+stages:
+  - name: test
+  - name: deploy
+    if: repo = chialab/mathjax-api AND type IN (push, api)
+
+jobs:
+  include:
+    - stage: 'test'
+      sudo: false
+      language: 'node_js'
+      node_js: '8.10'
+      install:
+        - 'yarn install'
+      script:
+        - 'yarn run test'
+    - stage: 'test'
+      sudo: false
+      language: 'python'
+      install:
+        - 'pip install awscli'
+      script:
+        - 'make validate'
+
+    - stage: 'deploy'
+      sudo: 'required'
+      language: 'python'
+      services:
+        - 'docker'
+      install:
+        - 'pip install awscli'
+        - 'docker image pull lambci/lambda:build-nodejs8.10'
+      script: 'skip'
+      before_deploy:
+        - 'make layer'
+      deploy:
+        # Deploy templates in `s3://thebucket/org/repo/branch-name`.
+        - provider: 'script'
+          script: 'make package S3_BUCKET=$S3_BUCKET S3_PREFIX="$TRAVIS_REPO_SLUG/$TRAVIS_BRANCH"'

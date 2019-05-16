@@ -1,11 +1,12 @@
 {
-  "name": "mathjax-docker",
-  "version": "0.1.0",
-  "description": "Run a MathJax converter server inside Docker.",
+  "name": "@chialab/math-api",
+  "version": "0.2.0",
+  "description": "Render LaTeX and MathML formulas as SVG or PNG.",
   "main": "index.js",
   "scripts": {
     "start": "node bin/server.js",
-    "test": "mocha"
+    "test": "mocha test/**/*.js",
+    "api-gateway": "sam local start-api --template templates/root.yml"
   },
   "keywords": [
     "mathjax",
@@ -15,7 +16,9 @@
   "author": "Chia Lab s.r.l.",
   "license": "MIT",
   "dependencies": {
-    "mathjax-node-svg2png": "^2.0.0"
+    "express": "^4.16.4",
+    "mathjax-node": "^2.1.1",
+    "svg2png": "^4.1.1"
   },
   "devDependencies": {
     "chai": "^4.2.0",

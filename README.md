@@ -1,67 +1,122 @@
-# MathJax API
+# Math API
 
-This Docker image exposes simple APIs to render formulas using MathJax on the server.
+A REST API to do fancy things with formulas, like rendering LaTeX or MathML to
+SVG or PNG on the server side using [MathJax for Node](https://github.com/mathjax/MathJax-node),
+while leveraging expensive computations on the client.
 
-## Getting started
+## As a Serverless application
 
-To get started, simply run a container from this image:
+You can deploy this repository as a serverless application using an AWS CloudFormation
+Template to create an AWS API Gateway that invokes Lambda functions to serve requests.
 
-```sh
-docker run --name mathjax-api -d -p 3000:3000 chialab/mathjax-api
-```
 
-This will expose the API on port `3000`.
 
-## Rendering formulas
+## As a Docker image
 
-The API consists of a single endpoint `/convert` that accepts `GET` and `POST`
-requests containing a JSON payload with at least `format` (either `latex` or
-`mathml`) and `source` keys.
+You can pull and run a Docker container to deploy the API on your local machine,
+server, Kubernetes cluster, whatever!
 
-The request **MUST** contain an `Accept` header specifying the mime type of the
-desired conversion format (either `application/mathml+xml`, `image/png`, or
-`image/svg+xml`). The response will then contain an appropriate `Content-Type` and
-payload.
-
-### Examples:
-
- - Render a LaTeX formula as SVG:
-
-    ```sh
-    curl -X POST --url http://localhost:3000/convert \
-        -H 'Accept: image/svg+xml' \
-        -H 'Content-Type: application/json' \
-        -d '{"type": "latex", "source": "x^2"}'
-    ```
-
- - Render an inline LaTeX formula as PNG and save it in `example.png`:
-
-    ```sh
-    curl -X POST --url http://localhost:3000/convert \
-        -H 'Accept: image/png' \
-        -H 'Content-Type: application/json' \
-        -d '{"type": "latex", "source": "x^2"}' > example.png
-    ```
-
-## Running the Web server locally
-
-Provided you have NodeJS and Yarn installed, you can run the following commands:
+To start the container (it will bind on <http://localhost:3000/>):
 
 ```sh
-yarn install
-yarn start
+docker run --name math-api -d -p 3000:3000 chialab/math-api
 ```
 
-This will start the Web server on your local machine. By default the server is
-bound to port 3000, but you can override this default by setting the environment
-variable `PORT` to the port you wish to use — e.g. `PORT=5000 yarn start`.
+## Endpoints
 
-## Building the Docker image locally
+- [`GET /render`](#get-render)
+- [`POST /render`](#post-render)
 
-Run `docker build` in the repository root to build the Docker image locally:
+### `GET /render`
 
-```sh
-docker build -t mathjax-api .
+> An endpoint to render LaTeX and MathML formulas to SVG or PNG.
+
+**Query parameters**:
+
+- `input` (**required**): the format of math in input.  
+   **Valid values**: `latex`, `mathml`
+- `inline` (_optional_): when `input` is `latex`, optionally enable "inline" mode.  
+   **Valid values**: `0`, `1`
+- `source` (**required**): the math to be rendered.  
+   **Valid values**: _string, depends on the input type_
+- `output` (**required**): the output format.  
+   **Valid values**: `mathml`, `png`, `svg`
+- `width`, `height` (_optional_): when `output` is `png`, specify the dimensions of the image to return.  
+   **Valid values**: _positive integers_
+
+**Examples**:
+
+```http
+GET /render?input=latex&output=svg&source=x^2 HTTP/1.1
+Accept: image/svg+xml
 ```
 
-Alternatively, you can run `make docker-build`.
+```http
+GET /render?input=latex&inline=1&output=png&source=x^2&width=512 HTTP/1.1
+Accept: image/png
+```
+
+### `POST /render`
+
+> An endpoint to render LaTeX and MathML formulas to SVG or PNG.
+
+**Request body (JSON)**:
+
+- `input` (**required**): the format of math in input.  
+   **Valid values**: `latex`, `mathml`
+- `inline` (_optional_): when `input` is `latex`, optionally enable "inline" mode.  
+   **Valid values**: _boolean_
+- `source` (**required**): the math to be rendered.  
+   **Valid values**: _string, depends on the input type_
+- `output` (**required**): the output format.  
+   **Valid values**: `mathml`, `png`, `svg`
+- `width`, `height` (_optional_): when `output` is `png`, specify the dimensions of the image to return.  
+   **Valid values**: _positive integers_
+
+**Examples**:
+
+```http
+POST /render
+Accept: image/svg+xml
+Content-Type: application/json
+
+{
+    "input": "latex",
+    "output": "svg",
+    "source": "e^{i \\pi} + 1 = 0"
+}
+```
+
+```http
+POST /render
+Accept: image/png
+Content-Type: application/json
+
+{
+    "input": "latex",
+    "inline": true,
+    "output": "png",
+    "source": "e^{i \\pi} + 1 = 0",
+    "width": 512
+}
+```
+
+## Development
+
+_All the following instructions assume you have at least [NodeJS](https://nodejs.org/) and [Yarn](https://yarnpkg.com/) installed._
+
+**Start the application locally**:
+> `yarn start`
+
+**Run unit tests**:
+> `yarn run test`
+
+**Start a simulated AWS API Gateway** (_provided you have AWS SAM Local and Docker installed_):
+> `yarn run api-gateway`
+
+**Validate CloudFormation template** (_provided you have AWS CLI installed_)
+> `make validate`
+
+**Package CloudFormation template** (_provided you have AWS CLI and Docker image_)
+> `make layer` (_this is needed only the first time, then when updating MathJax version_)  
+> `make package`

@@ -1,107 +1,83 @@
-const http = require('http');
-const url = require('url');
+const express = require('express');
 const { handler } = require('../lambda/render/index');
-
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const port = process.env.PORT || 3000;
 
-/**
- * Log in commonlog format.
- *
- * @param {Date} date Request date.
- * @param {http.IncomingMessage} req Request.
- * @param {http.ServerResponse} res Response.
- * @param {number} bytesSent Number of bytes sent in response's body.
- * @returns {void}
- */
-const commonLog = (date, req, res, bytesSent) => {
-    const pad = (val) => ('00' + val.toString()).slice(-2);
-    const tzOffset = Math.abs(date.getTimezoneOffset());
-    const tzOffsetStr = `${date.getTimezoneOffset() >= 0 ? '+' : '-'}${pad(Math.floor(tzOffset / 60))}${pad((tzOffset % 60))}`;;
-    const dateStr = `${pad(date.getDate())}/${MONTHS[date.getMonth()]}/${date.getFullYear()}:${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())} ${tzOffsetStr}`;
+/** @typedef {{ resource: string, path: string, httpMethod: string, headers: { [x: string]: string }, queryStringParameters: { [x: string]: string }, pathParameters: { [x: string]: string }, body: string, isBase64Encoded: boolean }} LambdaProxyInput */
+/** @typedef {{ statusCode: number, headers: { [x: string]: string }, body: string, isBase64Encoded: boolean }} LambdaProxyOutput */
 
-    console.log(`${req.connection.remoteAddress} - - [${dateStr}] "${req.method} ${req.url} HTTP/${req.httpVersion}" ${res.statusCode} ${bytesSent || '-'}`);
+/**
+ * Convert ExpressJS incoming request to a Lambda proxy input event.
+ *
+ * @returns {LambdaProxyInput}
+ */
+express.request.constructor.prototype.toLambdaEvent = function () {
+    return {
+        // resource: "Resource path",
+        path: this.path,
+        httpMethod: this.method,
+        headers: Object.assign({}, this.headers || {}),
+        // "multiValueHeaders": { List of strings containing incoming request headers }
+        queryStringParameters: Object.assign({}, this.query || {}),
+        // "multiValueQueryStringParameters": { List of query string parameters }
+        pathParameters: Object.assign({}, this.params || {}),
+        stageVariables: Object.assign({}, this.app.locals || {}),
+        requestContext: {}, // TODO
+        body: this.body,
+        isBase64Encoded: false,
+    };
 };
 
-const server = http.createServer((req, res) => {
-    const date = new Date();
-    const requestUrl = url.parse(req.url);
+/**
+ * Build ExpressJS response from Lambda proxy output.
+ *
+ * @param {LambdaProxyOutput} res Lambda proxy response.
+ * @returns {ThisType}
+ */
+express.response.constructor.prototype.fromLambdaResponse = function (res) {
+    this.status(res.statusCode);
+    if (res.headers) {
+        this.set(res.headers);
+    }
+    if (res.body) {
+        let buf = Buffer.from(res.body, res.isBase64Encoded ? 'base64' : 'utf8');
+        this.set('Content-Length', buf.byteLength);
+        this.write(buf);
+    }
+    this.end();
 
-    /**
-     * Send response.
-     *
-     * @param {number} statusCode Response status code.
-     * @param {http.OutgoingHttpHeaders} headers Response HTTP headers.
-     * @param {string|ArrayBuffer|undefined} body Response body.
-     * @returns {}
-     */
-    const send = (statusCode, headers = {}, body = undefined) => {
-        if (body) {
-            res.setHeader('Content-Length', Buffer.byteLength(body));
-        }
+    return this;
+};
 
-        res.writeHead(statusCode, headers);
-        res.end(body, () => {
-            commonLog(date, req, res, body ? Buffer.byteLength(body) : 0);
-        });
-    };
+const apigw = new express.Router();
 
-    /**
-     * Send an HTTP error.
-     *
-     * @param {number} statusCode Response status code.
-     * @param {string|undefined} message Error message.
-     * @param {http.OutgoingHttpHeaders} headers Response HTTP headers.
-     * @returns {void}
-     */
-    const error = (statusCode, message = undefined, headers = {}) => send(
-        statusCode,
-        Object.assign({ 'Content-Type': 'application/json' }, headers),
-        JSON.stringify({ message: message || http.STATUS_CODES[statusCode] }),
-    );
-
-    let body = '';
-    req.on('data', (chunk) => {
-        body += chunk;
-    });
-    req.on('end', async () => {
+// Render endpoint.
+apigw
+    .route('/render')
+    .get(async (req, res, next) => {
         try {
-            const event = {
-                headers: req.headers,
-                body,
-            };
-
-            if (requestUrl.pathname === '/convert') {
-                // Convert.
-                switch (req.method) {
-                    case 'GET':
-                    case 'POST':
-                    {
-                        const { statusCode, headers, body, isBase64Encoded = false } = await handler(event);
-
-                        if (isBase64Encoded) {
-                            return send(statusCode, headers, Buffer.from(body, 'base64'));
-                        }
-
-                        return send(statusCode, headers, body);
-                    }
-
-                    default:
-                        return error(405, `Method not allowed: ${req.method}`, { 'Allow': 'GET,POST' });
-                }
-            }
-
-            return error(404);
+            res.fromLambdaResponse(await handler(req.toLambdaEvent()));
         } catch (err) {
-            console.error(err);
-
-            return error(500);
+            next(err);
+        }
+    })
+    .post(async (req, res, next) => {
+        try {
+            res.fromLambdaResponse(await handler(req.toLambdaEvent()));
+        } catch (err) {
+            next(err);
         }
     });
-});
 
-server.on('listening', () => {
-    console.error(`Server running at http://localhost:${server.address().port}/convert`);
-});
-server.listen(port);
+// Assemble and start app.
+express()
+    .use(apigw)
+    .use((err, req, res, next) => {
+        // Error handling.
+        console.error('Integration error', err);
+
+        res.status(500)
+            .set('Content-Type', 'application/json')
+            .send(JSON.stringify({ message: 'Internal server error' }));
+    })
+    .listen(port, () => console.log(`Server running at http://localhost:${port}/`));

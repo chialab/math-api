@@ -1,7 +1,7 @@
 ---
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: 'AWS::Serverless-2016-10-31'
-Description: 'Deploy REST API to convert LaTeX and MathML formulas to SVG.'
+Description: 'Deploy REST API to render LaTeX and MathML formulas as SVG or PNG.'
 
 Parameters:
   CorsAllowedHost:
@@ -62,7 +62,7 @@ Resources:
       FunctionName: !GetAtt 'RenderFunction.Arn'
       Action: 'lambda:InvokeFunction'
       Principal: 'apigateway.amazonaws.com'
-      SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${Api}/*/*/convert'
+      SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${Api}/*/*/render'
 
   ###################
   ### API Gateway ###
@@ -88,25 +88,84 @@ Resources:
         x-amazon-apigateway-binary-media-types:
           - 'image/png'
         paths:
-          /convert:
+          /render:
             get:
               description: 'Render math formula.'
               x-amazon-apigateway-request-validator: 'all'
               parameters:
-                - in: 'header'
-                  name: 'Accept'
+                - in: 'query'
+                  name: 'input'
                   schema:
-                    $ref: '#/components/schemas/RenderRequest'
-                  description: 'Render format.'
-                  required: true
-              requestBody:
-                content:
-                  application/json:
-                    schema:
-                      $ref: '#/components/schemas/RenderRequest'
+                    type: 'string'
+                    enum:
+                      - 'latex'
+                      - 'mathml'
+                  description: 'Input format.'
+                  required: yes
+                - in: 'query'
+                  name: 'inline'
+                  schema:
+                    type: 'string'
+                    enum:
+                      - '0'
+                      - '1'
+                  description: 'For LaTeX input, whether it should be treated as an inline formula.'
+                - in: 'query'
+                  name: 'source'
+                  schema:
+                    type: 'string'
+                  description: 'Math to be rendered.'
+                  required: yes
+                - in: 'query'
+                  name: 'output'
+                  schema:
+                    type: 'string'
+                    enum:
+                      - 'mathml'
+                      - 'png'
+                      - 'svg'
+                  description: 'Output format.'
+                  required: yes
+                - in: 'query'
+                  name: 'width'
+                  schema:
+                    type: 'number'
+                    minValue: 1
+                  description: 'For PNG output, image width in pixels.'
+                - in: 'query'
+                  name: 'height'
+                  schema:
+                    type: 'number'
+                    minValue: 1
+                  description: 'For PNG output, image height in pixels.'
               responses:
                 '200':
                   description: 'OK'
+                  headers:
+                    Access-Control-Allow-Origin:
+                      schema:
+                        type: 'string'
+                  content:
+                    application/mathml+xml:
+                      schema:
+                        type: 'object'
+                    image/png:
+                      schema:
+                        type: 'string'
+                        format: 'binary'
+                    image/svg+xml:
+                      schema:
+                        type: 'object'
+                '400':
+                  description: 'OK'
+                  headers:
+                    Access-Control-Allow-Origin:
+                      schema:
+                        type: 'string'
+                  content:
+                    application/json:
+                      schema:
+                        $ref: '#/components/schemas/ErrorResponse'
               security:
                 - api_key: []
               x-amazon-apigateway-integration:
@@ -116,13 +175,6 @@ Resources:
             post:
               description: 'Render math formula.'
               x-amazon-apigateway-request-validator: 'all'
-              parameters:
-                - in: 'header'
-                  name: 'Accept'
-                  schema:
-                    $ref: '#/components/schemas/RenderRequest'
-                  description: 'Render format.'
-                  required: true
               requestBody:
                 content:
                   application/json:
@@ -131,6 +183,31 @@ Resources:
               responses:
                 '200':
                   description: 'OK'
+                  headers:
+                    Access-Control-Allow-Origin:
+                      schema:
+                        type: 'string'
+                  content:
+                    application/mathml+xml:
+                      schema:
+                        type: 'object'
+                    image/png:
+                      schema:
+                        type: 'string'
+                        format: 'binary'
+                    image/svg+xml:
+                      schema:
+                        type: 'object'
+                '400':
+                  description: 'OK'
+                  headers:
+                    Access-Control-Allow-Origin:
+                      schema:
+                        type: 'string'
+                  content:
+                    application/json:
+                      schema:
+                        $ref: '#/components/schemas/ErrorResponse'
               security:
                 - api_key: []
               x-amazon-apigateway-integration:
@@ -154,18 +231,24 @@ Resources:
                         type: 'string'
               x-amazon-apigateway-integration:
                 type: 'mock'
+                requestTemplates:
+                  application/json: '{"statusCode": 200}'
                 responses:
                   default:
                     statusCode: 200
                     responseParameters:
-                      method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+                      method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS,POST'"
                       method.response.header.Access-Control-Allow-Headers: "''"
                       method.response.header.Access-Control-Allow-Origin: !Sub "'${CorsAllowedHost}'"
-                requestTemplates:
-                  application/json: "{\"statusCode\": 200}"
         components:
           schemas:
-            RenderAccept:
+            ErrorResponse:
+              type: 'object'
+              properties:
+                message:
+                  type: 'string'
+              required: ['message']
+            RenderContentType:
               type: 'string'
               enum:
                 - 'application/mathml+xml'
@@ -174,7 +257,7 @@ Resources:
             RenderRequest:
               type: 'object'
               properties:
-                type:
+                input:
                   type: 'string'
                   enum:
                     - 'latex'
@@ -183,9 +266,17 @@ Resources:
                   type: 'boolean'
                 source:
                   type: 'string'
-                  minLength: 1
-                config:
-                  type: 'object'
-              required: ['type', 'source']
+                output:
+                  type: 'string'
+                  enum:
+                    - 'mathml'
+                    - 'png'
+                    - 'svg'
+                width:
+                  type: 'number'
+                  minValue: 1
+                height:
+                  type: 'number'
+                  minValue: 1
+              required: ['input', 'output', 'source']
               additionalProperties: no
-
