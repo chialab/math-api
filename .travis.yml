@@ -36,5 +36,6 @@ jobs:
         - 'make layer'
       deploy:
         # Deploy templates in `s3://thebucket/org/repo/branch-name`.
-        - provider: 'script'
-          script: 'make package S3_BUCKET=$S3_BUCKET S3_PREFIX="$TRAVIS_REPO_SLUG/$TRAVIS_BRANCH"'
+        skip_cleanup: true
+        provider: 'script'
+        script: 'make package S3_BUCKET=$S3_BUCKET S3_PREFIX="$TRAVIS_REPO_SLUG/$TRAVIS_BRANCH"'
