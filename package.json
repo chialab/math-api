@@ -3,6 +3,7 @@
   "version": "0.2.0",
   "description": "Render LaTeX and MathML formulas as SVG or PNG.",
   "main": "index.js",
+  "bin": "bin/server.js",
   "scripts": {
     "start": "node bin/server.js",
     "test": "mocha test/**/*.js",
