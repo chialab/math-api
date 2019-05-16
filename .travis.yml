@@ -1,7 +1,7 @@
 stages:
   - name: test
   - name: deploy
-    if: repo = chialab/mathjax-api AND type IN (push, api)
+    if: repo = chialab/mathjax-docker AND type IN (push, api)
 
 jobs:
   include:
