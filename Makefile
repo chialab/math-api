@@ -1,19 +1,25 @@
-.PHONY: build deploy
+ALL: package
+.PHONY: layer validate package
 
-DOCKER_TAG?=mathjax-node
-ENVIRONMENT?=production
+S3_BUCKET ?= chialab-cloudformation-templates
+S3_PREFIX ?= chialab/math-api
 
-build:
-	@docker build -t $(DOCKER_TAG) .
+layer:
+	docker run --rm \
+		-v $(PWD)/lambda/mathjax-node-layer/nodejs:/var/task \
+		-e NODE_ENV=production \
+		lambci/lambda:build-nodejs8.10 \
+		npm rebuild
 
-batik:
-	@if [ ! -f batik.tar.gz ]; then \
-		curl -o batik.tar.gz http://apache.panu.it/xmlgraphics/batik/binaries/batik-bin-1.8.tar.gz; \
-	fi
-	@tar -xvf batik.tar.gz
-	@mv batik-1.8/* node_modules/mathjax-node/batik/
-	@ln -s batik-rasterizer-1.8.jar node_modules/mathjax-node/batik/batik-rasterizer.jar
+validate:
+	aws cloudformation validate-template \
+		--template-body file://templates/root.yml
 
-deploy:
-	git archive --output=archive.zip HEAD
-	eb deploy --staged $(ENVIRONMENT)
+package: validate
+	aws cloudformation package \
+		--template-file templates/root.yml \
+		--output-template-file template.yml \
+		--s3-bucket $(S3_BUCKET) \
+		--s3-prefix $(S3_PREFIX)
+	aws s3 cp template.yml s3://$(S3_BUCKET)/$(S3_PREFIX)/
+	@echo https://s3.amazonaws.com/$(S3_BUCKET)/$(S3_PREFIX)/template.yml

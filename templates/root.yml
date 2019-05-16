@@ -1,0 +1,282 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+Description: 'Deploy REST API to render LaTeX and MathML formulas as SVG or PNG.'
+
+Parameters:
+  CorsAllowedHost:
+    Type: 'String'
+    Description: 'Host to be allowed for CORS requests.'
+    Default: '*'
+  ApiLoggingLevel:
+    Type: 'String'
+    AllowedValues:
+      - 'OFF'
+      - 'ERROR'
+      - 'INFO'
+    Description: 'Logging level of API Gateway stage.'
+    Default: 'ERROR'
+
+Resources:
+  ####################
+  ### Lambda layer ###
+  ####################
+  MathJaxNodeLayer:
+    Type: 'AWS::Lambda::LayerVersion'
+    Properties:
+      Content: '../lambda/mathjax-node-layer'
+      Description: !Sub 'Layer for Lambda functions requiring MathJax for ${AWS::StackName}.'
+      CompatibleRuntimes:
+        - 'nodejs8.10'
+
+  ###############################################
+  ### Lambda function to render math formulas ###
+  ###############################################
+  RenderRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service: 'lambda.amazonaws.com'
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+  RenderFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      Code: '../lambda/render'
+      Layers:
+        - !Ref 'MathJaxNodeLayer'
+      Description: !Sub 'Render math formulas with MathJax for ${AWS::StackName}.'
+      Handler: 'index.handler'
+      Role: !GetAtt 'RenderRole.Arn'
+      Runtime: 'nodejs8.10'
+      MemorySize: 256
+      Timeout: 5
+  RenderFunctionPermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      FunctionName: !GetAtt 'RenderFunction.Arn'
+      Action: 'lambda:InvokeFunction'
+      Principal: 'apigateway.amazonaws.com'
+      SourceArn: !Sub 'arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${Api}/*/*/render'
+
+  ###################
+  ### API Gateway ###
+  ###################
+  Api:
+    Type: 'AWS::Serverless::Api'
+    Properties:
+      Name: !Ref 'AWS::StackName'
+      StageName: 'default'
+      EndpointConfiguration: 'REGIONAL'
+      MethodSettings:
+        - HttpMethod: '*'
+          ResourcePath: '/*'
+          LoggingLevel: !Ref 'ApiLoggingLevel'
+      DefinitionBody:
+        openapi: '3.0.0'
+        schemes:
+          - 'https'
+        x-amazon-apigateway-request-validators:
+          all:
+            validateRequestBody: yes
+            validateRequestParameters: yes
+        x-amazon-apigateway-binary-media-types:
+          - 'image/png'
+        paths:
+          /render:
+            get:
+              description: 'Render math formula.'
+              x-amazon-apigateway-request-validator: 'all'
+              parameters:
+                - in: 'query'
+                  name: 'input'
+                  schema:
+                    type: 'string'
+                    enum:
+                      - 'latex'
+                      - 'mathml'
+                  description: 'Input format.'
+                  required: yes
+                - in: 'query'
+                  name: 'inline'
+                  schema:
+                    type: 'string'
+                    enum:
+                      - '0'
+                      - '1'
+                  description: 'For LaTeX input, whether it should be treated as an inline formula.'
+                - in: 'query'
+                  name: 'source'
+                  schema:
+                    type: 'string'
+                  description: 'Math to be rendered.'
+                  required: yes
+                - in: 'query'
+                  name: 'output'
+                  schema:
+                    type: 'string'
+                    enum:
+                      - 'mathml'
+                      - 'png'
+                      - 'svg'
+                  description: 'Output format.'
+                  required: yes
+                - in: 'query'
+                  name: 'width'
+                  schema:
+                    type: 'number'
+                    minValue: 1
+                  description: 'For PNG output, image width in pixels.'
+                - in: 'query'
+                  name: 'height'
+                  schema:
+                    type: 'number'
+                    minValue: 1
+                  description: 'For PNG output, image height in pixels.'
+              responses:
+                '200':
+                  description: 'OK'
+                  headers:
+                    Access-Control-Allow-Origin:
+                      schema:
+                        type: 'string'
+                  content:
+                    application/mathml+xml:
+                      schema:
+                        type: 'object'
+                    image/png:
+                      schema:
+                        type: 'string'
+                        format: 'binary'
+                    image/svg+xml:
+                      schema:
+                        type: 'object'
+                '400':
+                  description: 'OK'
+                  headers:
+                    Access-Control-Allow-Origin:
+                      schema:
+                        type: 'string'
+                  content:
+                    application/json:
+                      schema:
+                        $ref: '#/components/schemas/ErrorResponse'
+              security:
+                - api_key: []
+              x-amazon-apigateway-integration:
+                type: 'aws_proxy'
+                httpMethod: 'POST'
+                uri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RenderFunction.Arn}/invocations'
+            post:
+              description: 'Render math formula.'
+              x-amazon-apigateway-request-validator: 'all'
+              requestBody:
+                content:
+                  application/json:
+                    schema:
+                      $ref: '#/components/schemas/RenderRequest'
+              responses:
+                '200':
+                  description: 'OK'
+                  headers:
+                    Access-Control-Allow-Origin:
+                      schema:
+                        type: 'string'
+                  content:
+                    application/mathml+xml:
+                      schema:
+                        type: 'object'
+                    image/png:
+                      schema:
+                        type: 'string'
+                        format: 'binary'
+                    image/svg+xml:
+                      schema:
+                        type: 'object'
+                '400':
+                  description: 'OK'
+                  headers:
+                    Access-Control-Allow-Origin:
+                      schema:
+                        type: 'string'
+                  content:
+                    application/json:
+                      schema:
+                        $ref: '#/components/schemas/ErrorResponse'
+              security:
+                - api_key: []
+              x-amazon-apigateway-integration:
+                type: 'aws_proxy'
+                httpMethod: 'POST'
+                uri: !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RenderFunction.Arn}/invocations'
+            options:
+              description: 'CORS response.'
+              responses:
+                '200':
+                  description: 'OK'
+                  headers:
+                    Access-Control-Allow-Origin:
+                      schema:
+                        type: 'string'
+                    Access-Control-Allow-Methods:
+                      schema:
+                        type: 'string'
+                    Access-Control-Allow-Headers:
+                      schema:
+                        type: 'string'
+              x-amazon-apigateway-integration:
+                type: 'mock'
+                requestTemplates:
+                  application/json: '{"statusCode": 200}'
+                responses:
+                  default:
+                    statusCode: 200
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS,POST'"
+                      method.response.header.Access-Control-Allow-Headers: "''"
+                      method.response.header.Access-Control-Allow-Origin: !Sub "'${CorsAllowedHost}'"
+        components:
+          schemas:
+            ErrorResponse:
+              type: 'object'
+              properties:
+                message:
+                  type: 'string'
+              required: ['message']
+            RenderContentType:
+              type: 'string'
+              enum:
+                - 'application/mathml+xml'
+                - 'image/png'
+                - 'image/svg+xml'
+            RenderRequest:
+              type: 'object'
+              properties:
+                input:
+                  type: 'string'
+                  enum:
+                    - 'latex'
+                    - 'mathml'
+                inline:
+                  type: 'boolean'
+                source:
+                  type: 'string'
+                output:
+                  type: 'string'
+                  enum:
+                    - 'mathml'
+                    - 'png'
+                    - 'svg'
+                width:
+                  type: 'number'
+                  minValue: 1
+                height:
+                  type: 'number'
+                  minValue: 1
+              required: ['input', 'output', 'source']
+              additionalProperties: no
