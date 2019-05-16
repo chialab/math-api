@@ -16,6 +16,7 @@ jobs:
     - stage: 'test'
       sudo: false
       language: 'python'
+      python: '3.7'
       install:
         - 'pip install awscli'
       script:
@@ -24,6 +25,7 @@ jobs:
     - stage: 'deploy'
       sudo: 'required'
       language: 'python'
+      python: '3.7'
       services:
         - 'docker'
       install:
