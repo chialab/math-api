@@ -1,5 +1,5 @@
 const { expect } = require('chai');
-const { render } = require('../../lambda/render/index.js');
+const { render } = require('../../src/render/index.js');
 
 /**
  * PNG file signature (first 8 bytes).

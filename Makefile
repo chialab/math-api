@@ -6,10 +6,10 @@ S3_PREFIX ?= chialab/math-api
 
 layer:
 	docker run --rm \
-		-v $(PWD)/lambda/mathjax-node-layer/nodejs:/var/task \
+		-v $(PWD)/layers/mathjax-node-layer/nodejs:/var/task \
 		-e NODE_ENV=production \
 		lambci/lambda:build-nodejs8.10 \
-		npm $(if $(wildcard lambda/mathjax-node-layer/nodejs/node_modules/*), rebuild, install)
+		npm $(if $(wildcard layers/mathjax-node-layer/nodejs/node_modules/*), rebuild, install)
 
 validate:
 	aws cloudformation validate-template \
