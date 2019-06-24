@@ -97,12 +97,12 @@ describe('POST /render', function () {
     this.slow(200);
 
     Object.keys(TEST_INPUTS).forEach((alias) => it(`should render ${alias} as MathML`, function () {
-        const search = Object.assign({ output: 'mathml' }, TEST_INPUTS[alias]);
+        const body = Object.assign({ output: 'mathml' }, TEST_INPUTS[alias]);
 
         return testApp
             .post('/render')
             .set('Content-Type', 'application/json')
-            .send(search)
+            .send(body)
             .expect(200)
             .expect('Content-Type', 'application/mathml+xml')
             .expect((response) => {
@@ -115,12 +115,12 @@ describe('POST /render', function () {
     Object.keys(TEST_INPUTS).forEach((alias) => it(`should render ${alias} as PNG`, function () {
         this.slow(2000);
 
-        const search = Object.assign({ output: 'png' }, TEST_INPUTS[alias]);
+        const body = Object.assign({ output: 'png' }, TEST_INPUTS[alias]);
 
         return testApp
             .post('/render')
             .set('Content-Type', 'application/json')
-            .send(search)
+            .send(body)
             .expect(200)
             .expect('Content-Type', 'image/png')
             .expect((response) => {
@@ -132,12 +132,12 @@ describe('POST /render', function () {
     }));
 
     Object.keys(TEST_INPUTS).forEach((alias) => it(`should render ${alias} as SVG`, function () {
-        const search = Object.assign({ output: 'svg' }, TEST_INPUTS[alias]);
+        const body = Object.assign({ output: 'svg' }, TEST_INPUTS[alias]);
 
         return testApp
             .post('/render')
             .set('Content-Type', 'application/json')
-            .send(search)
+            .send(body)
             .expect(200)
             .expect('Content-Type', 'image/svg+xml')
             .expect((response) => {
@@ -148,12 +148,12 @@ describe('POST /render', function () {
     }));
 
     it('should return "400 Bad Request" with invalid parameters', function () {
-        const search = { input: 'latex', output: 'INVALID', source: 'x^2' };
+        const body = { input: 'latex', output: 'INVALID', source: 'x^2' };
 
         return testApp
             .post('/render')
             .set('Content-Type', 'application/json')
-            .send(search)
+            .send(body)
             .expect(400, { message: 'Invalid output: INVALID' })
             .expect('Content-Type', /^application\/json(?:;|$)/);
     });
