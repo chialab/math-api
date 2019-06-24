@@ -68,7 +68,7 @@ apigw
     });
 
 // Assemble app.
-exports.app = express()
+module.exports = express()
     .use(apigw)
     .use((err, req, res, next) => {
         // Error handling.
