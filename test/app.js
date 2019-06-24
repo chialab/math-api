@@ -1,6 +1,6 @@
 const querystring = require('querystring');
 const { expect } = require('chai');
-const request = require('supertest');
+const supertest = require('supertest');
 const app = require('../src/app.js');
 
 /**
@@ -19,23 +19,25 @@ const TEST_INPUTS = {
     'inline-MathML': { input: 'mathml', source: '<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><msup><mi>x</mi><mn>2</mn></msup></math>' },
 };
 
+const testApp = supertest(app);
+
 // First PNG conversion is always slower. Warm up before tests start to avoid first test always being slow.
 before('warm up', function () {
     this.timeout(5000);
 
-    return request(app).get('/render?input=latex&output=png&source=x')
+    return testApp.get('/render?input=latex&output=png&source=x')
         .catch(console.error);
 });
 
 describe('GET /render', function () {
-    this.timeout(3000);
+    this.timeout(5000);
     this.slow(200);
 
     Object.keys(TEST_INPUTS).forEach((alias) => it(`should render ${alias} as MathML`, function () {
         const search = Object.assign({ output: 'mathml' }, TEST_INPUTS[alias]);
         const url = `/render?${querystring.stringify(search)}`;
 
-        return request(app)
+        return testApp
             .get(url)
             .expect(200)
             .expect('Content-Type', 'application/mathml+xml')
@@ -52,7 +54,7 @@ describe('GET /render', function () {
         const search = Object.assign({ output: 'png' }, TEST_INPUTS[alias]);
         const url = `/render?${querystring.stringify(search)}`;
 
-        return request(app)
+        return testApp
             .get(url)
             .expect(200)
             .expect('Content-Type', 'image/png')
@@ -68,7 +70,7 @@ describe('GET /render', function () {
         const search = Object.assign({ output: 'svg' }, TEST_INPUTS[alias]);
         const url = `/render?${querystring.stringify(search)}`;
 
-        return request(app)
+        return testApp
             .get(url)
             .expect(200)
             .expect('Content-Type', 'image/svg+xml')
@@ -83,7 +85,7 @@ describe('GET /render', function () {
         const search = { input: 'latex', output: 'INVALID', source: 'x^2' };
         const url = `/render?${querystring.stringify(search)}`;
 
-        return request(app)
+        return testApp
             .get(url)
             .expect(400, { message: 'Invalid output: INVALID' })
             .expect('Content-Type', /^application\/json(?:;|$)/);
@@ -91,13 +93,13 @@ describe('GET /render', function () {
 });
 
 describe('POST /render', function () {
-    this.timeout(3000);
+    this.timeout(5000);
     this.slow(200);
 
     Object.keys(TEST_INPUTS).forEach((alias) => it(`should render ${alias} as MathML`, function () {
         const search = Object.assign({ output: 'mathml' }, TEST_INPUTS[alias]);
 
-        return request(app)
+        return testApp
             .post('/render')
             .set('Content-Type', 'application/json')
             .send(search)
@@ -115,7 +117,7 @@ describe('POST /render', function () {
 
         const search = Object.assign({ output: 'png' }, TEST_INPUTS[alias]);
 
-        return request(app)
+        return testApp
             .post('/render')
             .set('Content-Type', 'application/json')
             .send(search)
@@ -132,7 +134,7 @@ describe('POST /render', function () {
     Object.keys(TEST_INPUTS).forEach((alias) => it(`should render ${alias} as SVG`, function () {
         const search = Object.assign({ output: 'svg' }, TEST_INPUTS[alias]);
 
-        return request(app)
+        return testApp
             .post('/render')
             .set('Content-Type', 'application/json')
             .send(search)
@@ -148,7 +150,7 @@ describe('POST /render', function () {
     it('should return "400 Bad Request" with invalid parameters', function () {
         const search = { input: 'latex', output: 'INVALID', source: 'x^2' };
 
-        return request(app)
+        return testApp
             .post('/render')
             .set('Content-Type', 'application/json')
             .send(search)
