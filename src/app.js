@@ -1,3 +1,4 @@
+const { raw } = require('body-parser');
 const express = require('express');
 const { handler } = require('./render/index.js');
 
@@ -11,7 +12,7 @@ const { handler } = require('./render/index.js');
  */
 express.request.constructor.prototype.toLambdaEvent = function () {
     return {
-        // resource: 'Resource path',
+        resource: this.route.path,
         path: this.path,
         httpMethod: this.method,
         headers: Object.assign({}, this.headers || {}),
@@ -69,6 +70,7 @@ apigw
 
 // Assemble app.
 module.exports = express()
+    .use(raw({ type: '*/*' }))
     .use(apigw)
     .use((err, req, res, next) => {
         // Error handling.
