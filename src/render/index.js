@@ -1,5 +1,5 @@
 const MathJax = require('mathjax-node');
-const svg2png = require("svg2png");
+const svg2png = require('svg2png');
 
 /** @typedef {{ input: 'latex', inline?: boolean } | { input: 'mathml' }} InputDefinition */
 /** @typedef {{ output: 'mathml' | 'svg' } | { output: 'png', width?: number, height?: number }} OutputDefinition */

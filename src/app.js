@@ -11,13 +11,13 @@ const { handler } = require('./render/index.js');
  */
 express.request.constructor.prototype.toLambdaEvent = function () {
     return {
-        // resource: "Resource path",
+        // resource: 'Resource path',
         path: this.path,
         httpMethod: this.method,
         headers: Object.assign({}, this.headers || {}),
-        // "multiValueHeaders": { List of strings containing incoming request headers }
+        // multiValueHeaders: { List of strings containing incoming request headers }
         queryStringParameters: Object.assign({}, this.query || {}),
-        // "multiValueQueryStringParameters": { List of query string parameters }
+        // multiValueQueryStringParameters: { List of query string parameters }
         pathParameters: Object.assign({}, this.params || {}),
         stageVariables: Object.assign({}, this.app.locals || {}),
         requestContext: {}, // TODO
