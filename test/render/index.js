@@ -1,5 +1,5 @@
 const { expect } = require('chai');
-const { render } = require('../../lambda/render/index.js');
+const { render } = require('../../src/render/index.js');
 
 /**
  * PNG file signature (first 8 bytes).
@@ -17,12 +17,17 @@ const TEST_INPUTS = {
     'inline-MathML': { input: 'mathml', source: '<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><msup><mi>x</mi><mn>2</mn></msup></math>' },
 };
 
-describe('index#render', function () {
+// First PNG conversion is always slower. Warm up before tests start to avoid first test always being slow.
+before('warm up', function () {
     this.timeout(5000);
-    this.slow(200);
 
-    // First conversion is always slower. Warm up before tests start to avoid first test always being slow.
-    before('warm up', () => render({ input: 'latex', output: 'png', source: 'x^2' }).catch(console.error));
+    return render({ input: 'latex', output: 'png', source: 'x^2' })
+        .catch(console.error);
+});
+
+describe('index#render', function () {
+    this.timeout(3000);
+    this.slow(200);
 
     Object.keys(TEST_INPUTS).forEach((alias) => it(`should render ${alias} as MathML`, async function () {
         if (TEST_INPUTS[alias].input === 'mathml') {

@@ -24,7 +24,7 @@ Resources:
   MathJaxNodeLayer:
     Type: 'AWS::Lambda::LayerVersion'
     Properties:
-      Content: '../lambda/mathjax-node-layer'
+      Content: '../layers/mathjax-node-layer'
       Description: !Sub 'Layer for Lambda functions requiring MathJax for ${AWS::StackName}.'
       CompatibleRuntimes:
         - 'nodejs8.10'
@@ -47,7 +47,7 @@ Resources:
   RenderFunction:
     Type: 'AWS::Lambda::Function'
     Properties:
-      Code: '../lambda/render'
+      Code: '../src/render'
       Layers:
         - !Ref 'MathJaxNodeLayer'
       Description: !Sub 'Render math formulas with MathJax for ${AWS::StackName}.'

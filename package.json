@@ -6,7 +6,7 @@
   "bin": "bin/server.js",
   "scripts": {
     "start": "node bin/server.js",
-    "test": "mocha test/**/*.js",
+    "test": "mocha test/*.js test/**/*.js",
     "api-gateway": "sam local start-api --template templates/root.yml"
   },
   "keywords": [
@@ -17,12 +17,14 @@
   "author": "Chia Lab s.r.l.",
   "license": "MIT",
   "dependencies": {
+    "body-parser": "^1.19.0",
     "express": "^4.16.4",
     "mathjax-node": "^2.1.1",
     "svg2png": "^4.1.1"
   },
   "devDependencies": {
     "chai": "^4.2.0",
-    "mocha": "^6.1.4"
+    "mocha": "^6.1.4",
+    "supertest": "^4.0.2"
   }
 }

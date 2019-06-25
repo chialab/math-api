@@ -1,5 +1,4 @@
 /node_modules
-/lambda/mathjax-node-layer
-/test
+/layers/mathjax-node-layer
 /templates
 /template.yml
