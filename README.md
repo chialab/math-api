@@ -9,7 +9,7 @@ while leveraging expensive computations on the client.
 You can deploy this repository as a serverless application using an AWS CloudFormation
 Template to create an AWS API Gateway that invokes Lambda functions to serve requests.
 
-> [**Launch this stack on AWS**](https://console.aws.amazon.com/cloudformation/home#/stacks/new?stackName=MathApi&templateURL=https://s3-eu-west-1.amazonaws.com/chialab-cloudformation-templates/chialab/math-api/master/template.yml)
+> [**Launch this stack on AWS**](https://console.aws.amazon.com/cloudformation/home#/stacks/new?stackName=MathApi&templateURL=https://chialab-cloudformation-templates.s3-eu-west-1.amazonaws.com/chialab/math-api/master/template.yml)
 
 ## As a Docker image
 
@@ -117,6 +117,6 @@ _All the following instructions assume you have at least [NodeJS](https://nodejs
 **Validate CloudFormation template** (_provided you have AWS CLI installed_)
 > `make validate`
 
-**Package CloudFormation template** (_provided you have AWS CLI and Docker image_)
-> `make layer` (_this is needed only the first time, then when updating MathJax version_)  
+**Package CloudFormation template** (_provided you have AWS CLI and Docker installed_)
+> `make layers` (_this is needed only the first time, then when updating MathJax version_)  
 > `make package`
