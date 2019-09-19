@@ -118,5 +118,9 @@ _All the following instructions assume you have at least [NodeJS](https://nodejs
 > `make validate`
 
 **Package CloudFormation template** (_provided you have AWS CLI and Docker installed_)
-> `make layers` (_this is needed only the first time, then when updating MathJax version_)  
+> `make layers` (_this is needed only the first time, then when updating MathJax version_)
 > `make package`
+
+**Deploy CloudFormation template** (_provided you have AWS CLI and Docker installed_)
+> `make deploy`
+> `make deploy ENVIRONMENT=Production`
