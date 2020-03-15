@@ -1,4 +1,14 @@
-# Math API
+<p align="center">
+    <a href="https://www.chialab.io/p/proteins">
+        <img alt="Math-api logo" width="144" height="144" src="https://raw.githack.com/chialab/math-api/master/logo.svg" />
+    </a>
+</p>
+
+<p align="center">
+  <strong>Math API</strong> • Render LaTeX and MathML formulas as SVG or PNG.
+</p>
+
+---
 
 A REST API to do fancy things with formulas, like rendering LaTeX or MathML to
 SVG or PNG on the server side using [MathJax for Node](https://github.com/mathjax/MathJax-node),
@@ -124,3 +134,9 @@ _All the following instructions assume you have at least [NodeJS](https://nodejs
 **Deploy CloudFormation template** (_provided you have AWS CLI and Docker installed_)
 > `make deploy`
 > `make deploy ENVIRONMENT=Production`
+
+---
+
+## License
+
+Math API is released under the [MIT](https://github.com/chialab/math-api/blob/master/LICENSE) license.
