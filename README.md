@@ -1,6 +1,6 @@
 <p align="center">
     <a href="https://www.chialab.io/p/proteins">
-        <img alt="Math-api logo" width="144" height="144" src="https://raw.githack.com/chialab/math-api/master/logo.svg" />
+        <img alt="Math API logo" width="144" height="144" src="https://raw.githack.com/chialab/math-api/master/logo.svg" />
     </a>
 </p>
 
