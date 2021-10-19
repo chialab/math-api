@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "mathjax-node": "^2.1.1",
+    "mathjax": "^3.2.0",
     "svg2png": "^4.1.1"
   }
 }
