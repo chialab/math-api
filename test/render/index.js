@@ -99,7 +99,7 @@ describe('index#render', function () {
         } catch (err) {
             expect(err).to.be.an.instanceOf(Error)
                 .that.has.property('message')
-                    .that.contains('Invalid source')
+                    .that.contains('MathML must be formed by a <math> element, not <#text>')
                     .and.that.does.not.contain('\n');
         }
     });

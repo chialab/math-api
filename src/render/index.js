@@ -1,4 +1,3 @@
-const MathJax = require('mathjax-node');
 const svg2png = require('svg2png');
 
 /** @typedef {{ input: 'latex', inline?: boolean } | { input: 'mathml' }} InputDefinition */
@@ -26,13 +25,21 @@ const RESPONSE_TYPES = {
  *
  * @var {{}}
  */
-const MJAX_SETTINGS = process.env.MJAX_SETTINGS ? JSON.parse(process.env.MJAX_SETTINGS) : {};
+const defaultConfiguration = {
+    loader: {
+        paths: {mathjax: 'mathjax/es5'},
+        require: require,
+        load: ['adaptors/liteDOM', 'input/mml', 'input/tex-full', 'output/svg']
+    },
+    options: {
+        enableAssistiveMml: false
+    }
+}
+const MJAX_SETTINGS = process.env.MJAX_SETTINGS ? JSON.parse(process.env.MJAX_SETTINGS) : defaultConfiguration;
+MathJax = MJAX_SETTINGS;
 
-// Initialize MathJax.
-MathJax.config({
-    MathJax: MJAX_SETTINGS,
-});
-MathJax.start();
+require('mathjax/es5/tex-mml-svg.js');
+
 
 /**
  * Detect format.
@@ -65,7 +72,25 @@ const getFormat = (input) => {
  */
 const typeset = async (data) => {
     try {
-        return await MathJax.typeset(data);
+        await MathJax.startup.promise;
+        switch (data.format) {
+            case 'TeX':
+            case 'inline-TeX':
+                if (data.mml) {
+                    return MathJax.tex2mmlPromise(data.math);
+                }
+                if (data.svg) {
+                    return MathJax.tex2svgPromise(data.math);
+                }
+                throw new Error(`Supported output formats for ${data.format} input are: MathML, SVG`);
+            case 'MathML':
+                if (data.svg) {
+                    return MathJax.mathml2svgPromise(data.math);
+                }
+                throw new Error(`Supported output formats for ${data.format} input are: SVG`);
+            default:
+                throw new Error(`Unsupported input format: ${data.format}`);
+        }
     } catch (err) {
         console.error('MathJax error', err);
 
@@ -103,15 +128,16 @@ exports.render = async (event) => {
         {
             const res = await typeset({ math, format, mml: true });
 
-            return { contentType: RESPONSE_TYPES.mathml, data: res.mml };
+            return { contentType: RESPONSE_TYPES.mathml, data: res };
         }
 
         case 'png':
         {
             const res = await typeset({ math, format, svg: true });
 
+            const svg = MathJax.startup.adaptor.innerHTML(res);
             const { width, height } = event;
-            const data = await svg2png(res.svg, { width, height });
+            const data = await svg2png(svg, { width, height });
 
             return { contentType: RESPONSE_TYPES.png, isBase64Encoded: true, data: data.toString('base64') };
         }
@@ -120,7 +146,9 @@ exports.render = async (event) => {
         {
             const res = await typeset({ math, format, svg: true });
 
-            return { contentType: RESPONSE_TYPES.svg, data: res.svg };
+            const svg = MathJax.startup.adaptor.innerHTML(res);
+
+            return { contentType: RESPONSE_TYPES.svg, data: svg };
         }
 
         default:
