@@ -18,6 +18,7 @@ const RESPONSE_TYPES = {
     mathml: 'application/mathml+xml',
     png: 'image/png',
     svg: 'image/svg+xml',
+    json: 'application/json',
 };
 
 /**
@@ -31,9 +32,6 @@ const defaultConfiguration = {
         require: require,
         load: ['adaptors/liteDOM', 'input/mml', 'input/tex-full', 'output/svg']
     },
-    options: {
-        enableAssistiveMml: false
-    }
 }
 const MJAX_SETTINGS = process.env.MJAX_SETTINGS ? JSON.parse(process.env.MJAX_SETTINGS) : defaultConfiguration;
 MathJax = MJAX_SETTINGS;
@@ -82,12 +80,12 @@ const typeset = async (data) => {
                 if (data.svg) {
                     return MathJax.tex2svgPromise(data.math);
                 }
-                throw new Error(`Supported output formats for ${data.format} input are: MathML, SVG`);
+                throw new Error(`Supported output formats for ${data.format} input are: MathML, SVG, AssistiveSVG`);
             case 'MathML':
                 if (data.svg) {
                     return MathJax.mathml2svgPromise(data.math);
                 }
-                throw new Error(`Supported output formats for ${data.format} input are: SVG`);
+                throw new Error(`Supported output formats for ${data.format} input are: SVG, AssistiveSVG`);
             default:
                 throw new Error(`Unsupported input format: ${data.format}`);
         }
@@ -108,6 +106,21 @@ const typeset = async (data) => {
         throw new Error('Invalid source');
     }
 };
+
+/**
+ * Render math.
+ *
+ * @param {Typesetted} Result of a typesetted input.
+ * @returns {svg: string, assistiveML: string}
+ */
+const getSvgAndAssistiveML = (typesetted) => {
+    const svgAndAssistiveML = /(<svg .+<\/svg>)(<mjx-assistive-mml .+)/;
+    const groups = MathJax.startup.adaptor.innerHTML(typesetted).match(svgAndAssistiveML);
+    return {
+        svg: groups[1],
+        assistiveML: groups[2]
+    }
+}
 
 /**
  * Render math.
@@ -135,7 +148,7 @@ exports.render = async (event) => {
         {
             const res = await typeset({ math, format, svg: true });
 
-            const svg = MathJax.startup.adaptor.innerHTML(res);
+            const { svg } = getSvgAndAssistiveML(res);
             const { width, height } = event;
             const data = await svg2png(svg, { width, height });
 
@@ -146,9 +159,18 @@ exports.render = async (event) => {
         {
             const res = await typeset({ math, format, svg: true });
 
-            const svg = MathJax.startup.adaptor.innerHTML(res);
+            const { svg } = getSvgAndAssistiveML(res);
 
             return { contentType: RESPONSE_TYPES.svg, data: svg };
+        }
+
+        case 'assistiveSVG':
+        {
+            const res = await typeset({ math, format, svg: true });
+
+            const { svg, assistiveML } = getSvgAndAssistiveML(res);
+
+            return { contentType: RESPONSE_TYPES.json, data: JSON.stringify({svg, assistiveML}) };
         }
 
         default:
