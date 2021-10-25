@@ -90,7 +90,7 @@ describe('index#render', function () {
         }
     });
 
-    it('should throw with invalid source', async function () {
+    it('should throw with invalid xml source', async function () {
         const event = { input: 'mathml', output: 'svg', source: 'x^2' };
 
         try {
@@ -99,7 +99,21 @@ describe('index#render', function () {
         } catch (err) {
             expect(err).to.be.an.instanceOf(Error)
                 .that.has.property('message')
-                    .that.contains('MathML must be formed by a <math> element, not <#text>')
+                    .that.contains('Invalid MathML: MathML must be formed by a <math> element, not <#text>')
+                    .and.that.does.not.contain('\n');
+        }
+    });
+
+    it('should throw with valid xml but invalid MathML source', async function () {
+        const event = { input: 'mathml', output: 'svg', source: '<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">x^2</math>' };
+
+        try {
+            await render(event);
+            expect.fail('Did not throw');
+        } catch (err) {
+            expect(err).to.be.an.instanceOf(Error)
+                .that.has.property('message')
+                    .that.contains('Invalid MathML: Unexpected text node "x^2"')
                     .and.that.does.not.contain('\n');
         }
     });

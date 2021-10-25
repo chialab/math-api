@@ -65,6 +65,24 @@ const getFormat = (input) => {
 };
 
 /**
+ * Validate MathML string.
+ *
+ * @param {string} math - The input MathML string to validate.
+ * @param {Promise} conversionPromise - The MathJax conversion function to use for validation.
+ * @returns {Promise<node: string}>} The MathJax conversion promise
+ * @throws {Error} Throws an error if input string is not valid MathML.
+ */
+const validateMathML = async (math, conversionPromise) => {
+    const p = conversionPromise(math);
+    try {
+        await p;
+    } catch(err) {
+        throw new Error(`Invalid MathML: ${err.message}`);
+    }
+    return p;
+}
+
+/**
  * Typeset math.
  *
  * @param {{ math: string, format: 'TeX' | 'inline-TeX' | 'MathML', mml?: boolean, svg?: boolean }} data Data.
@@ -85,7 +103,10 @@ const typeset = async (data) => {
                 throw new Error(`Supported output formats for ${data.format} input are: MathML, SVG`);
             case 'MathML':
                 if (data.svg) {
-                    return MathJax.mathml2svgPromise(data.math);
+                    return await validateMathML(data.math, MathJax.mathml2svgPromise);
+                }
+                if (data.mml) {
+                    return await validateMathML(data.math, MathJax.mathml2mmlPromise);
                 }
                 throw new Error(`Supported output formats for ${data.format} input are: SVG`);
             default:
@@ -116,11 +137,6 @@ const typeset = async (data) => {
  * @returns {Promise<Output>}
  */
 exports.render = async (event) => {
-    if (event.input === 'mathml' && event.output === 'mathml') {
-        // No-op conversion MathML-to-MathML.
-        return { contentType: RESPONSE_TYPES.mathml, data: event.source };
-    }
-
     const format = getFormat(event);
     const math = event.source;
     switch (event.output) {
