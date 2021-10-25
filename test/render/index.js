@@ -63,7 +63,20 @@ describe('index#render', function () {
 
         expect(actual).to.be.an('object').with.keys('contentType', 'data');
         expect(actual.contentType).to.be.a('string').that.equals('image/svg+xml');
-        expect(actual.data).to.be.a('string').that.contains('</svg>');
+        expect(actual.data).to.be.a('string').that.match(/<svg .+<\/svg>/);
+    }));
+
+    Object.keys(TEST_INPUTS).forEach((alias) => it(`should render ${alias} as AssistiveSVG`, async function () {
+        const event = Object.assign({ output: 'assistiveSVG' }, TEST_INPUTS[alias]);
+        const actual = await render(event);
+
+        expect(actual).to.be.an('object').with.keys('contentType', 'data');
+        expect(actual.contentType).to.be.a('string').that.equals('application/json');
+
+        const actualData = JSON.parse(actual.data);
+        expect(actualData).to.be.an('object').with.keys('svg', 'assistiveML');
+        expect(actualData.svg).to.be.a('string').that.match(/<svg .+<\/svg>/);
+        expect(actualData.assistiveML).to.be.a('string').that.match(/<mjx-assistive-mml .+<\/mjx-assistive-mml>/);
     }));
 
     it('should throw with invalid input type', async function () {

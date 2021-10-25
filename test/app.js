@@ -77,7 +77,22 @@ describe('GET /render', function () {
             .expect((response) => {
                 const data = response.body.toString();
 
-                expect(data).to.be.a('string').that.contains('</svg>');
+                expect(data).to.be.a('string').that.match(/<svg .+<\/svg>/);
+            });
+    }));
+
+    Object.keys(TEST_INPUTS).forEach((alias) => it(`should render ${alias} as AssistiveSVG`, function () {
+        const search = Object.assign({ output: 'assistiveSVG' }, TEST_INPUTS[alias]);
+        const url = `/render?${querystring.stringify(search)}`;
+
+        return testApp
+            .get(url)
+            .expect(200)
+            .expect('Content-Type', 'application/json; charset=utf-8')
+            .expect((response) => {
+                expect(response.body).to.be.an('object').with.keys('svg', 'assistiveML');
+                expect(response.body.svg).to.be.a('string').that.match(/<svg .+<\/svg>/);
+                expect(response.body.assistiveML).to.be.a('string').that.match(/<mjx-assistive-mml .+<\/mjx-assistive-mml>/);
             });
     }));
 
@@ -143,7 +158,23 @@ describe('POST /render', function () {
             .expect((response) => {
                 const data = response.body.toString();
 
-                expect(data).to.be.a('string').that.contains('</svg>');
+                expect(data).to.be.a('string').that.match(/<svg .+<\/svg>/);
+            });
+    }));
+
+    Object.keys(TEST_INPUTS).forEach((alias) => it(`should render ${alias} as SVG`, function () {
+        const body = Object.assign({ output: 'assistiveSVG' }, TEST_INPUTS[alias]);
+
+        return testApp
+            .post('/render')
+            .set('Content-Type', 'application/json')
+            .send(body)
+            .expect(200)
+            .expect('Content-Type', 'application/json; charset=utf-8')
+            .expect((response) => {
+                expect(response.body).to.be.an('object').with.keys('svg', 'assistiveML');
+                expect(response.body.svg).to.be.a('string').that.match(/<svg .+<\/svg>/);
+                expect(response.body.assistiveML).to.be.a('string').that.match(/<mjx-assistive-mml .+<\/mjx-assistive-mml>/);
             });
     }));
 
