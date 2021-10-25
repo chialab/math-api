@@ -90,6 +90,26 @@ describe('GET /render', function () {
             .expect(400, { message: 'Invalid output: INVALID' })
             .expect('Content-Type', /^application\/json(?:;|$)/);
     });
+
+    it('should return "400 Bad Request" with invalid MathML source (xml validation error)', function () {
+        const search = { input: 'mathml', output: 'mathml', source: 'x^2' };
+        const url = `/render?${querystring.stringify(search)}`;
+
+        return testApp
+            .get(url)
+            .expect(400, { message: 'Invalid MathML: MathML must be formed by a <math> element, not <#text>' })
+            .expect('Content-Type', /^application\/json(?:;|$)/);
+    });
+
+    it('should return "400 Bad Request" with invalid MathML source (MathML validation error)', function () {
+        const search = { input: 'mathml', output: 'mathml', source: '<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">x^2</math>' };
+        const url = `/render?${querystring.stringify(search)}`;
+
+        return testApp
+            .get(url)
+            .expect(400, { message: 'Invalid MathML: Unexpected text node "x^2"' })
+            .expect('Content-Type', /^application\/json(?:;|$)/);
+    });
 });
 
 describe('POST /render', function () {
@@ -155,6 +175,28 @@ describe('POST /render', function () {
             .set('Content-Type', 'application/json')
             .send(body)
             .expect(400, { message: 'Invalid output: INVALID' })
+            .expect('Content-Type', /^application\/json(?:;|$)/);
+    });
+
+    it('should return "400 Bad Request" with invalid MathML source (xml validation error)', function () {
+        const body = { input: 'mathml', output: 'mathml', source: 'x^2' };
+
+        return testApp
+            .post('/render')
+            .set('Content-Type', 'application/json')
+            .send(body)
+            .expect(400, { message: 'Invalid MathML: MathML must be formed by a <math> element, not <#text>' })
+            .expect('Content-Type', /^application\/json(?:;|$)/);
+    });
+
+    it('should return "400 Bad Request" with invalid MathML source (MathML validation error)', function () {
+        const body = { input: 'mathml', output: 'mathml', source: '<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">x^2</math>' };
+
+        return testApp
+            .post('/render')
+            .set('Content-Type', 'application/json')
+            .send(body)
+            .expect(400, { message: 'Invalid MathML: Unexpected text node "x^2"' })
             .expect('Content-Type', /^application\/json(?:;|$)/);
     });
 });
